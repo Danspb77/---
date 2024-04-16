@@ -1,3 +1,4 @@
+
 #define _XOPEN_SOURCE 500
 #include <stdio.h>
 #include <string.h>
@@ -7,48 +8,30 @@
 
 #include "plugin_api.h"
 
+static char *g_purpose = "Check if file contains specified bytes in any order";
+static char *g_author = "Belyakov Nikita";
 
-
-static char *g_plugin_purpose = "Check if file contains given bytes in any order";
-//задаем переменные. static чтобы не было проблем с передачей их в другие файлы через функции
-
-static char *g_plugin_author = "Belyakov Nikita";
-
-static struct plugin_option g_po_arr[] = {
-    /*
-        struct plugin_option {
-            struct option {
-               const char *name;
-               int         has_arg;
-               int        *flag;
-               int         val;
-            } opt,
-            char *opt_descr
-        }
-    */
+static struct plugin_option g_options[] = {
     {
-        {
-            "bytes",
-            required_argument,
-            0,
-            0,
-        },
-        "Bytes to search for"}};
+        {"bytes", required_argument, 0, 0},
+        "Bytes to search for"
+    }
+};
 
-static int g_po_arr_len = sizeof(g_po_arr) / sizeof(g_po_arr[0]);
+static int g_options_len = sizeof(g_options) / sizeof(g_options[0]);
 
 int plugin_get_info(struct plugin_info *ppi)
 {
     if (!ppi)
     {
-        fprintf(stderr, "ERROR: invalid argument\n");
+        fprintf(stderr, "ERROR: Invalid argument\n");
         return -1;
     }
 
-    ppi->plugin_purpose = g_plugin_purpose;
-    ppi->plugin_author = g_plugin_author;
-    ppi->sup_opts_len = g_po_arr_len;
-    ppi->sup_opts = g_po_arr;
+    ppi->plugin_purpose = g_purpose;
+    ppi->plugin_author = g_author;
+    ppi->sup_opts_len = g_options_len;
+    ppi->sup_opts = g_options;
 
     return 0;
 }
@@ -57,7 +40,6 @@ int plugin_process_file(const char *fname,
                         struct option in_opts[],
                         size_t in_opts_len)
 {
-
     if (!fname || !in_opts || !in_opts_len)
     {
         errno = EINVAL;
@@ -71,7 +53,6 @@ int plugin_process_file(const char *fname,
         {
             bytes_string = strdup((char *)in_opts[i].flag);
         }
-        //проверяем полученные аргументы
         else
         {
             errno = EINVAL;
@@ -88,19 +69,16 @@ int plugin_process_file(const char *fname,
     size_t bytes_cnt = 0;
     char *saveptr = NULL;
     char *tok = strtok_r(bytes_string, ",", &saveptr);
-    //при помощи strtok_r разбиваем строку на токены
-    //в первом запуске первый аргумент строка, в последующих NULL, т.к. работаем с той же строкой
     while (tok != NULL) {
         if (strlen(tok) > 2 && tok[0] == '0' && tok[1] == 'b') {
             if (strlen(tok) > 10) {
-                errno = ERANGE; // больше 8 бит => больше байта
+                errno = ERANGE;
                 if (bytes_string)
                     free(bytes_string);
                 if (bytes)
                     free(bytes);
                 return -1;
             }
-            //выделяем память на байты
             bytes = realloc(bytes, sizeof(unsigned char) * (bytes_cnt + 1));
             bytes[bytes_cnt] = 0;
             for (size_t i = strlen(tok) - 1; i > 1; i--) {
@@ -113,7 +91,7 @@ int plugin_process_file(const char *fname,
         }
         else if (strlen(tok) > 2 && tok[0] == '0' && tok[1] == 'x') {
             if(strlen(tok) > 4){
-                errno = ERANGE; //слишком большой вход - больше байта
+                errno = ERANGE;
                 if (bytes_string)
                     free(bytes_string);
                 if (bytes)
@@ -123,14 +101,12 @@ int plugin_process_file(const char *fname,
             bytes = realloc(bytes, sizeof(unsigned char) * (bytes_cnt + 1));
             bytes[bytes_cnt] = 0;
             sscanf(tok+2, "%02hhx",bytes+bytes_cnt);
-            //считываем из tok 2 символа после 0x в формате hex
             
             bytes_cnt++;
         }
         else
         {
             if(tok != NULL && tok[0] == '0' && strcmp(tok, "0")!= 0){
-                //если число начинается с нуля, и не является само по себе нулем - считаем ошибкой
                 errno = EINVAL;
                 if (bytes_string)
                     free(bytes_string);
@@ -148,7 +124,6 @@ int plugin_process_file(const char *fname,
                     free(bytes);
                 return -1;
             }
-            //если больше 255 то больше байта
             if(num > 255){
                 errno = ERANGE;
                  if (bytes_string)
@@ -181,7 +156,6 @@ int plugin_process_file(const char *fname,
     }
     while(!feof(f)){
         unsigned char buf[1];
-        //считываем по байту из файла и сверяем с имеющимися
         size_t t = fread(buf, sizeof(unsigned char), 1, f);
         if(t != 1 && !feof(f)) {
             if(found) 
@@ -196,12 +170,14 @@ int plugin_process_file(const char *fname,
         for(size_t i = 0; i < bytes_cnt; i++){
             if(memcmp((char*)bytes+i, (char*)buf, 1) == 0){
                 found[i]++;
+
+
             }
         }
     }
     int ret = 0;
     for(size_t i = 0; i < bytes_cnt; i++){
-        if(found[i] == 0) ret = 1;//если какой то не нашли, то файл не подходит
+        if(found[i] == 0) ret = 1;
     }
     if(getenv("LAB1DEBUG")!=NULL && ret == 0){
         fprintf(stderr,"Debug mode: Target bytes (");
