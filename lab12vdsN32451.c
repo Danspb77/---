@@ -37,78 +37,101 @@ int or = 0, not = 0, found_opts = 0, got_opts = 0;
 void open_dyn_libs(const char *dir);
 
 int main(int argc, char *argv[]) {
-    open_dyn_libs("./"); //открываем библиотеки в текущей папке
-    optparse(argc, argv); //и парсим все опции
+    // Открытие динамических библиотек в текущей папке
+    open_dyn_libs("./");
+
+    // Парсинг опций командной строки
+    optparse(argc, argv);
+
+    // Проверка, были ли найдены опции. Если нет, выводим сообщение и завершаем программу
     if (got_opts == 0) {
         printf("No options found. Use -h for help\n");
-        if(plugins){
-        for(int i = 0; i < plug_cnt; i++) {
-            if(plugins[i].in_opts) free(plugins[i].in_opts);
-            dlclose(plugins[i].lib);
+
+        // Освобождаем выделенную память и закрываем открытые библиотеки
+        if (plugins) {
+            for (int i = 0; i < plug_cnt; i++) {
+                if (plugins[i].in_opts) free(plugins[i].in_opts);
+                dlclose(plugins[i].lib);
+            }
+            free(plugins);
         }
-        free(plugins);
-        }   
-        exit(EXIT_FAILURE);
+        exit(EXIT_FAILURE); // Выходим с кодом ошибки
     }
 
+    // Обход директории, указанной в последнем аргументе командной строки
     walk_dir(argv[argc-1]);
 
-    if(plugins){
-        for(int i = 0; i < plug_cnt; i++) {
-            if(plugins[i].in_opts) free(plugins[i].in_opts);
+    // Освобождение памяти и закрытие открытых библиотек
+    if (plugins) {
+        for (int i = 0; i < plug_cnt; i++) {
+            if (plugins[i].in_opts) free(plugins[i].in_opts);
             dlclose(plugins[i].lib);
         }
         free(plugins);
     }   
-    return EXIT_SUCCESS;
-}
 
+    return EXIT_SUCCESS; // Возвращаем успешный код завершения программы
+}
 
 int open_func(const char *fpath,const struct stat *sb, 
         int typeflag, struct FTW *ftwbuf) {
-    //также как и walk_func, но только здесь мы открываем плагины
-    if(!ftwbuf || !sb) return 1;
-    if(typeflag == FTW_F && strstr(fpath, ".so") != NULL){
+    // Проверяем наличие корректных данных в ftwbuf и sb
+    if (!ftwbuf || !sb)
+        return 1; // Возвращаем 1, чтобы пропустить текущий файл при обходе
+
+    // Проверяем, является ли файл обычным файлом и имеет ли расширение .so
+    if (typeflag == FTW_F && strstr(fpath, ".so") != NULL) {
+        // Открываем динамическую библиотеку
         void *library = dlopen(fpath, RTLD_LAZY);
-        if(!library) {
+        if (!library) {
+            // В случае ошибки выводим сообщение об ошибке и возвращаем 0,
+            // чтобы пропустить текущую библиотеку и продолжить поиск
             fprintf(stderr, "dlopen() failed: %s\n", dlerror());
-            return 0; //если с плагином проблемы - ищем следующие
+            return 0;
         } else {
+            // Получаем указатели на функции плагина
             void* pi_f = dlsym(library, "plugin_get_info");
-            if(!pi_f) {
-            fprintf(stderr, "dlsym() failed: %s\n", dlerror());
-            dlclose(library);
-            return 0;
+            if (!pi_f) {
+                // Если не удалось найти функцию plugin_get_info, выводим ошибку
+                fprintf(stderr, "dlsym() failed: %s\n", dlerror());
+                dlclose(library); // Закрываем библиотеку
+                return 0;
             } 
+            
             void* pf_f = dlsym(library, "plugin_process_file");
-            if(!pf_f) {
-            fprintf(stderr, "dlsym() failed: %s\n", dlerror());
-            dlclose(library);
-            return 0;
-            }
-            struct plugin_info pi ={0};
-            pgi_func_t pgi = (pgi_func_t)pi_f;
-            int tmp = pgi(&pi);
-            if(tmp == -1){
-                fprintf(stderr, "error in plugin_get_info\n");
-                dlclose(library);
+            if (!pf_f) {
+                // Если не удалось найти функцию plugin_process_file, выводим ошибку
+                fprintf(stderr, "dlsym() failed: %s\n", dlerror());
+                dlclose(library); // Закрываем библиотеку
                 return 0;
             }
 
-            //если с плагином все в порядке сохраняем это все чтобы потом обработать и использовать
-            plugins = realloc(plugins, sizeof(dynamic_lib) * (plug_cnt+1));
+            // Вызываем функцию plugin_get_info для получения информации о плагине
+            struct plugin_info pi = {0};
+            pgi_func_t pgi = (pgi_func_t)pi_f;
+            int tmp = pgi(&pi);
+            if (tmp == -1) {
+                // Если возникла ошибка при получении информации о плагине, выводим ошибку
+                fprintf(stderr, "error in plugin_get_info\n");
+                dlclose(library); // Закрываем библиотеку
+                return 0;
+            }
+
+            // Если все успешно, сохраняем информацию о плагине в массив
+            plugins = realloc(plugins, sizeof(dynamic_lib) * (plug_cnt + 1));
             plugins[plug_cnt].pi = pi;
             plugins[plug_cnt].ppf = (ppf_func_t)pf_f;
             plugins[plug_cnt].lib = library;
             plugins[plug_cnt].in_opts = NULL;
             plugins[plug_cnt].in_opts_len = 0;
             plug_cnt++;
-            found_opts+=pi.sup_opts_len;
+            found_opts += pi.sup_opts_len;
         }
-
     }
-    return 0;
+    
+    return 0; // Возвращаем 0, чтобы продолжить обход директории
 }
+
 
 void open_dyn_libs(const char *dir){
     int res = nftw(dir, open_func, 10, FTW_PHYS); //для открытия плагинов
