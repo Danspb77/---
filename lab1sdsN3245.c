@@ -1,15 +1,13 @@
 // Including necessary headers
-
-#include <ftw.h>
-#include <sys/param.h>      // for MIN()
-#include <getopt.h>
-#include <dlfcn.h>
 #define _XOPEN_SOURCE 500   // for nftw()
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
-
+#include <ftw.h>
+#include <sys/param.h>      // for MIN()
+#include <getopt.h>
+#include <dlfcn.h>
 
 #include "plugin_api.h"     // Custom plugin API header
 
