@@ -7,11 +7,12 @@
 
 #include "plugin_api.h"
 
-//static char *g_lib_name = "libvdsN32451.so";
+
 
 static char *g_plugin_purpose = "Check if file contains given bytes in any order";
 //задаем переменные. static чтобы не было проблем с передачей их в другие файлы через функции
-static char *g_plugin_author = "Smaglyuk Vladislav";
+
+static char *g_plugin_author = "Belyakov Nikita";
 
 static struct plugin_option g_po_arr[] = {
     /*
@@ -107,8 +108,7 @@ int plugin_process_file(const char *fname,
                     bytes[bytes_cnt] |= (1 << (strlen(tok) - i - 1));
                 }
             }
-            //if (getenv("LAB1DEBUG") != NULL)
-              //  fprintf(stderr, "Debug mode: binary byte parsed, int: %d\n", (int)bytes[bytes_cnt]);
+            
             bytes_cnt++;
         }
         else if (strlen(tok) > 2 && tok[0] == '0' && tok[1] == 'x') {
@@ -124,8 +124,7 @@ int plugin_process_file(const char *fname,
             bytes[bytes_cnt] = 0;
             sscanf(tok+2, "%02hhx",bytes+bytes_cnt);
             //считываем из tok 2 символа после 0x в формате hex
-            //if(getenv("LAB1DEBUG") != NULL)
-              //  fprintf(stderr, "Debug mode: hex byte parsed, int: %d\n", (int)bytes[bytes_cnt]);
+            
             bytes_cnt++;
         }
         else
@@ -160,8 +159,8 @@ int plugin_process_file(const char *fname,
             } else{
                 bytes = realloc(bytes, (bytes_cnt+1) * sizeof(unsigned char));
                 bytes[bytes_cnt] = (unsigned char)num;
-                //if(getenv("LAB1DEBUG") != NULL) 
-                  //  fprintf(stderr, "Debug mode: decimal byte parsed, int: %d\n", (int)bytes[bytes_cnt]);
+                
+                
                 bytes_cnt++;
             }
         }
