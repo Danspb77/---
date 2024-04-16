@@ -1,17 +1,17 @@
-#define _XOPEN_SOURCE 500   // для nftw()
-
+// Including necessary headers
+#define _XOPEN_SOURCE 500   // for nftw()
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
 #include <ftw.h>
-#include <sys/param.h>      // для MIN()
+#include <sys/param.h>      // for MIN()
 #include <getopt.h>
 #include <dlfcn.h>
 
-#include "plugin_api.h"
+#include "plugin_api.h"     // Custom plugin API header
 
-#define MAX_INDENT_LEVEL 128
+#define MAX_INDENT_LEVEL 128 // Maximum indent level for file hierarchy
 
 // Function declarations
 int open_func(const char *fpath,const struct stat *sb, 
@@ -20,79 +20,78 @@ void open_dyn_libs(const char *dir);
 void optparse(int argc, char *argv[]);
 void walk_dir(const char *dir);
 
-void print_entry(int level, int type, const char *path);
-int walk_func(const char *fpath,const struct stat *sb, 
-        int typeflag, struct FTW *ftwbuf);
-
 // Function pointers
 unsigned char *search_bytes;
 typedef int (*ppf_func_t)(const char*, struct option*, size_t);
 typedef int (*pgi_func_t)(struct plugin_info*);
 
-
+// Structure to store dynamic library information
 typedef struct{
-    void* lib;
-    struct plugin_info pi;
-    ppf_func_t ppf;
-    struct option* in_opts;
-    size_t in_opts_len;
+    void* lib;                  // Handle to loaded library
+    struct plugin_info pi;      // Plugin information
+    ppf_func_t ppf;             // Pointer to plugin process file function
+    struct option* in_opts;     // Options provided to the plugin
+    size_t in_opts_len;         // Number of options provided
 } dynamic_lib; 
 
-dynamic_lib *plugins = NULL;
-int plug_cnt = 0;
-int or = 0, not = 0, found_opts = 0, got_opts = 0;
+// Global variables for dynamic libraries
+dynamic_lib *plugins = NULL;    // Array of loaded plugins
+int plug_cnt = 0;               // Count of loaded plugins
+int or = 0, not = 0;             // Flags for logical operations
+int found_opts = 0, got_opts = 0;// Count of found options and received options
 
 // Implementation of open_func
 int open_func(const char *fpath, const struct stat *sb, 
               int typeflag, struct FTW *ftwbuf) {
-    // Проверяем, что все параметры используются, чтобы избежать предупреждения компилятора
+    // Check if all parameters are used to avoid compiler warnings
     (void) sb;
     (void) typeflag;
     (void) ftwbuf;
 
+    // Check if file path is valid
     if (!fpath) {
         fprintf(stderr, "Invalid file path\n");
         return 0;
     }
 
+    // Check if the file is a shared library
     if (typeflag == FTW_F && strstr(fpath, ".so") != NULL) {
-        // Открываем динамическую библиотеку
+        // Open the shared library
         void *library = dlopen(fpath, RTLD_LAZY);
         if (!library) {
-            // В случае ошибки выводим сообщение об ошибке и возвращаем 0,
-            // чтобы пропустить текущую библиотеку и продолжить поиск
+            // If opening fails, print error message and return 0 to continue searching
             fprintf(stderr, "dlopen() failed for %s: %s\n", fpath, dlerror());
             return 0;
         } else {
-            // Получаем указатели на функции плагина
+            // Get pointers to plugin functions
             void* pi_f = dlsym(library, "plugin_get_info");
             if (!pi_f) {
-                // Если не удалось найти функцию plugin_get_info, выводим ошибку
+                // If plugin_get_info function not found, print error
                 fprintf(stderr, "dlsym() failed for plugin_get_info: %s\n", dlerror());
-                dlclose(library); // Закрываем библиотеку
+                dlclose(library);
                 return 0;
             } 
             
             void* pf_f = dlsym(library, "plugin_process_file");
             if (!pf_f) {
-                // Если не удалось найти функцию plugin_process_file, выводим ошибку
+                // If plugin_process_file function not found, print error
                 fprintf(stderr, "dlsym() failed for plugin_process_file: %s\n", dlerror());
-                dlclose(library); // Закрываем библиотеку
+                dlclose(library);
                 return 0;
             }
 
-            // Вызываем функцию plugin_get_info для получения информации о плагине
+            // Call plugin_get_info function to get plugin information
             struct plugin_info pi = {0};
             pgi_func_t pgi = (pgi_func_t)pi_f;
             int tmp = pgi(&pi);
             if (tmp == -1) {
-                // Если возникла ошибка при получении информации о плагине, выводим ошибку
+                // If error occurred during plugin_get_info, print error
                 fprintf(stderr, "Error in plugin_get_info\n");
-                dlclose(library); // Закрываем библиотеку
+                dlclose(library);
                 return 0;
             }
 
-            // Если все успешно, сохраняем информацию о плагине в массив
+            // Allocate memory for plugins array and add plugin information
             plugins = realloc(plugins, sizeof(dynamic_lib) * (plug_cnt + 1));
             plugins[plug_cnt].pi = pi;
             plugins[plug_cnt].ppf = (ppf_func_t)pf_f;
@@ -104,13 +103,10 @@ int open_func(const char *fpath, const struct stat *sb,
         }
     }
     
-    return 0; // Возвращаем 0, чтобы продолжить обход директории
+    return 0; // Return 0 to continue directory traversal
 }
 
-
-
-
-
+// Main function
 int main(int argc, char *argv[]) {
     open_dyn_libs("./"); // Открытие динамических библиотек в текущей папке
     optparse(argc, argv); // Парсинг опций командной строки
