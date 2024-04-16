@@ -108,14 +108,14 @@ int open_func(const char *fpath, const struct stat *sb,
 
 // Main function
 int main(int argc, char *argv[]) {
-    open_dyn_libs("./"); // Открытие динамических библиотек в текущей папке
-    optparse(argc, argv); // Парсинг опций командной строки
+    open_dyn_libs("./"); // Open dynamic libraries in the current directory
+    optparse(argc, argv); // Parse command line options
 
-    // Проверка, были ли найдены опции. Если нет, выводим сообщение и завершаем программу
+    // Check if any options were found. If not, print a message and exit
     if (got_opts == 0) {
         printf("No options found. Use -h for help\n");
 
-        // Освобождаем выделенную память и закрываем открытые библиотеки
+        // Free allocated memory and close open libraries
         if (plugins) {
             for (int i = 0; i < plug_cnt; i++) {
                 if (plugins[i].in_opts) free(plugins[i].in_opts);
@@ -123,13 +123,13 @@ int main(int argc, char *argv[]) {
             }
             free(plugins);
         }
-        exit(EXIT_FAILURE); // Выходим с кодом ошибки
+        exit(EXIT_FAILURE);
     }
 
-    // Обход директории, указанной в последнем аргументе командной строки
+    // Traverse the directory specified in the last command line argument
     walk_dir(argv[argc-1]);
 
-    // Освобождение памяти и закрытие открытых библиотек
+    // Free allocated memory and close open libraries
     if (plugins) {
         for (int i = 0; i < plug_cnt; i++) {
             if (plugins[i].in_opts) free(plugins[i].in_opts);
@@ -138,157 +138,186 @@ int main(int argc, char *argv[]) {
         free(plugins);
     }   
 
-    return EXIT_SUCCESS; // Возвращаем успешный код завершения программы
+    return EXIT_SUCCESS; // Return success exit code
 }
 
-// Функция открытия динамических библиотек
+// Function to open dynamic libraries
 void open_dyn_libs(const char *dir){
-    int res = nftw(dir, open_func, 10, FTW_PHYS); // Для открытия плагинов
+    int res = nftw(dir, open_func, 10, FTW_PHYS); // Open plugins
     if (res < 0) {
         fprintf(stderr, "ntfw() failed: %s\n", strerror(errno));
     }
 }
 
-// Функция парсинга опций командной строки
+
+// Function for parsing command line options
 void optparse(int argc, char *argv[]){
-    // Выделяем память под структуры опций
+    // Allocate memory for option structures
     struct option *long_options = calloc(found_opts+1, sizeof(struct option));
     int copied = 0;
-    // Копируем опции из всех плагинов в общий список опций
+    
+    // Copy options from all plugins into a common options list
     for(int i = 0; i < plug_cnt; i++) {
         for(size_t j = 0; j < plugins[i].pi.sup_opts_len; j++){
             long_options[copied] = plugins[i].pi.sup_opts[j].opt;
             copied++;
         }
     }
+    
     int option_index = 0;
     int choice;
-    // Парсинг опций
+    
+    // Parse options
     while ((choice = getopt_long(argc, argv, "vhP:OAN", long_options, &option_index)) != -1) {
         switch (choice) {
-        case 0:
-            // Обработка опций
-            for(int i = 0; i < plug_cnt; i++) {
+            case 0:
+                // Process user-set options
+                for(int i = 0; i < plug_cnt; i++) {
                     for(size_t j = 0; j < plugins[i].pi.sup_opts_len; j++){
                         if(strcmp(long_options[option_index].name, plugins[i].pi.sup_opts[j].opt.name) == 0){
+                            // Expand options array to store the option
                             plugins[i].in_opts =  realloc(plugins[i].in_opts, (plugins[i].in_opts_len+1) * sizeof(struct option));
                             plugins[i].in_opts[plugins[i].in_opts_len] = long_options[option_index];
-                            if(plugins[i].in_opts[plugins[i].in_opts_len].has_arg != 0)plugins[i].in_opts[plugins[i].in_opts_len].flag = (int*)optarg;
+                            
+                            // Set flag if the option has an argument
+                            if(plugins[i].in_opts[plugins[i].in_opts_len].has_arg != 0)
+                                plugins[i].in_opts[plugins[i].in_opts_len].flag = (int*)optarg;
+                            
                             plugins[i].in_opts_len++;
                             got_opts++;
                         }
                     }
-            }
-            break;
-        case 'h':
-            // Вывод справки
-            printf("Usage: %s <options> <dir>\n", argv[0]);
-            printf("<dir> - directory to search\n");
-            printf("available options: -P <dir> to change plugin, -h for help, -A for 'and',   dir -O for 'or',  -N for 'not'\n");
-            for(int i = 0; i < plug_cnt; i++){
-                printf("Plugin purpose: %s\n", plugins[i].pi.plugin_purpose);
-                for(size_t j = 0; j < plugins[i].pi.sup_opts_len; j++) printf("%s -- %s\n", plugins[i].pi.sup_opts[j].opt.name, plugins[i].pi.sup_opts[j].opt_descr);
-                printf("\n");
-            }
-            // Освобождаем память и завершаем программу
-            if(plugins){
+                }
+                break;
+            case 'h':
+                // Display program and plugin help
+                printf("Usage: %s <options> <dir>\n", argv[0]);
+                printf("<dir> - directory to search\n");
+                printf("Available options: -P <dir> to change plugin, -h for help, -A for 'and', -O for 'or', -N for 'not'\n");
+                
+                // Display plugin information
+                for(int i = 0; i < plug_cnt; i++){
+                    printf("Plugin purpose: %s\n", plugins[i].pi.plugin_purpose);
+                    for(size_t j = 0; j < plugins[i].pi.sup_opts_len; j++) 
+                        printf("%s -- %s\n", plugins[i].pi.sup_opts[j].opt.name, plugins[i].pi.sup_opts[j].opt_descr);
+                    printf("\n");
+                }
+                
+                // Free memory and exit
+                if(plugins){
+                    for(int i = 0; i < plug_cnt; i++) {
+                        if(plugins[i].in_opts) free(plugins[i].in_opts);
+                        dlclose(plugins[i].lib);
+                    }
+                    free(plugins);
+                }   
+                free(long_options);
+                exit(EXIT_SUCCESS);
+            case 'v':
+                // Display program version information
+                printf("Shurygin Danil N3245 Version 1.0\n");
+                
+                // Free memory and exit
+                if(plugins){
+                    for(int i = 0; i < plug_cnt; i++) {
+                        if(plugins[i].in_opts) free(plugins[i].in_opts);
+                        dlclose(plugins[i].lib);
+                    }
+                    free(plugins);
+                }   
+                free(long_options);
+                exit(EXIT_SUCCESS);
+            case 'P':
+                // Change the current plugin
+                if(got_opts > 0){
+                    fprintf(stderr, "-P must be before plugin opts!\n");
+                    free(long_options); // If an option was found before -P, this may cause problems
+                    got_opts = 0;
+                    return;
+                }
+                
+                // Close current libraries and free memory
                 for(int i = 0; i < plug_cnt; i++) {
-                    if(plugins[i].in_opts) free(plugins[i].in_opts);
                     dlclose(plugins[i].lib);
                 }
                 free(plugins);
-            }   
-            free(long_options);
-            exit(EXIT_SUCCESS);
-        case 'v':
-            // Вывод информации о версии программы
-            printf("Shurygin Danil N3245 Version 1.0\n");
-            // Освобождаем память и завершаем программу
-            if(plugins){
+                plugins = NULL;
+                plug_cnt = 0;
+                found_opts = 0;
+                
+                // Output debug information and open new plugins
+                if(getenv("LAB1DEBUG") != NULL) fprintf(stderr, "New lib path: %s\n", optarg);
+                free(long_options);
+                open_dyn_libs(optarg);
+                long_options = calloc(found_opts+1, sizeof(struct option));
+                copied = 0;
                 for(int i = 0; i < plug_cnt; i++) {
-                    if(plugins[i].in_opts) free(plugins[i].in_opts);
-                    dlclose(plugins[i].lib);
+                    for(size_t j = 0; j < plugins[i].pi.sup_opts_len; j++){
+                        long_options[copied] = plugins[i].pi.sup_opts[j].opt;
+                        copied++;
+                    }
                 }
-                free(plugins);
-            }   
-            free(long_options);
-            exit(EXIT_SUCCESS);
-        case 'P':
-            // Смена плагина
-            if(got_opts > 0){
-                fprintf(stderr, "-P must be before plugin opts!\n");
-                free(long_options); // Если мы уже нашли какую-то опцию до -P, это может вызвать проблемы
-                got_opts = 0;
-                return;
-            }
-            for(int i = 0; i < plug_cnt; i++) {
-                dlclose(plugins[i].lib);
-            }
-            free(plugins);
-            plugins = NULL;
-            plug_cnt = 0;
-            found_opts = 0;
-            
-            if(getenv("LAB1DEBUG") != NULL) fprintf(stderr, "New lib path: %s\n", optarg);
-            free(long_options);
-            open_dyn_libs(optarg);
-            long_options = calloc(found_opts+1, sizeof(struct option));
-            copied = 0;
-            for(int i = 0; i < plug_cnt; i++) {
-            for(size_t j = 0; j < plugins[i].pi.sup_opts_len; j++){
-                long_options[copied] = plugins[i].pi.sup_opts[j].opt;
-                copied++;
-                }
-            }
-            break;
-        case 'O':
-            or = 1;
-            break;
-        case 'A':
-            or = 0;
-            break;
-        case 'N':
-            not = 1;
-            break;
-        case '?':
-            break;
+                break;
+            case 'O':
+                or = 1;
+                break;
+            case 'A':
+                or = 0;
+                break;
+            case 'N':
+                not = 1;
+                break;
+            case '?':
+                break;
         }
     }
     free(long_options);
 }
 
-// Функция вывода информации о найденных файлах
+// Function for printing information about found files
 void print_entry(int level, int type, const char *path) {
-    if (!strcmp(path, ".") || !strcmp(path, "..") || type!=FTW_F)
-        return; // Открываем только обычные файлы
+    // Skip directory entries and non-regular files
+    if (!strcmp(path, ".") || !strcmp(path, "..") || type != FTW_F)
+        return;
 
+    // Create indentation based on the depth of the file in the directory structure
     char indent[MAX_INDENT_LEVEL] = {0};
     memset(indent, ' ', MIN((size_t)level, MAX_INDENT_LEVEL));
 
     int cnt = 0;
     int cnt_success = 0;
+    
+    // Iterate over all plugins to process the file with the appropriate options
     for(int i = 0; i < plug_cnt; i++){
-        // Если не нашли опций у плагина, не запускаем из него функцию
+        // Skip plugins with no options set
         if(plugins[i].in_opts_len > 0){
+            // Call plugin's processing function with the specified options
             int tmp = plugins[i].ppf(path, plugins[i].in_opts, plugins[i].in_opts_len);
+            
+            // Handle errors if any
             if(tmp == -1){
-                fprintf(stderr, "error in plugin! %s", strerror(errno));
-                if(errno == EINVAL || errno == ERANGE) plugins[i].in_opts_len = 0;
-            } else if (tmp == 0) cnt++;
+                fprintf(stderr, "Error in plugin! %s", strerror(errno));
+                // Reset options if an error occurs
+                if(errno == EINVAL || errno == ERANGE) 
+                    plugins[i].in_opts_len = 0;
+            } else if (tmp == 0) 
+                cnt++;
             cnt_success++;
         }
     }
     
-    // Проверяем соответствие условиям OR и NOT
-    if((not && or && (cnt== 0)) || (not && !or && (cnt!=cnt_success))){
+    // Check if the conditions for 'or' and 'not' are met
+    if((not && or && (cnt == 0)) || (not && !or && (cnt != cnt_success))){
+        // Print the path of the found file with appropriate indentation
         printf("%sFound file: %s\n", indent, path);
-    } else if((!not && or && (cnt > 0)) || (!not && !or && (cnt==cnt_success))){
+    } else if((!not && or && (cnt > 0)) || (!not && !or && (cnt == cnt_success))){
+        // Print the path of the found file with appropriate indentation
         printf("%sFound file: %s\n", indent, path);
     }
     return;
 } 
 
-// Функция обхода директории
+// Function for directory traversal
 int walk_func(const char *fpath,const struct stat *sb, 
         int typeflag, struct FTW *ftwbuf) {
     if(!sb) return -1;
@@ -297,6 +326,7 @@ int walk_func(const char *fpath,const struct stat *sb,
     return 0;
 }
 
+// Function to traverse directories
 void walk_dir(const char *dir) {
     int res = nftw(dir, walk_func, 10, FTW_PHYS);   
     if (res < 0) {
