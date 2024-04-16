@@ -171,7 +171,7 @@ void optparse(int argc, char *argv[]){
         case 'h':
             printf("Usage: %s <options> <dir>\n", argv[0]);
             printf("<dir> - directory to search\n");
-            printf("available options: -h for help  -P <dir> to change plugin dir -O for 'or'  -A for 'and'  -N for 'not'\n");
+            printf("available options: -P <dir> to change plugin, -h for help, -A for 'and',   dir -O for 'or',  -N for 'not'\n");
             for(int i = 0; i < plug_cnt; i++){
                 printf("Plugin purpose: %s\n", plugins[i].pi.plugin_purpose);
                 for(size_t j = 0; j < plugins[i].pi.sup_opts_len; j++) printf("%s -- %s\n", plugins[i].pi.sup_opts[j].opt.name, plugins[i].pi.sup_opts[j].opt_descr);
