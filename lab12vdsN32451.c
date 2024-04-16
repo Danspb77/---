@@ -132,7 +132,7 @@ void optparse(int argc, char *argv[]){
     {
         switch (choice)
         {
-        case 0:/
+        case 0:
             for(int i = 0; i < plug_cnt; i++) {
                     for(size_t j = 0; j < plugins[i].pi.sup_opts_len; j++){
                         if(strcmp(long_options[option_index].name, plugins[i].pi.sup_opts[j].opt.name) == 0){
@@ -141,13 +141,11 @@ void optparse(int argc, char *argv[]){
                             if(plugins[i].in_opts[plugins[i].in_opts_len].has_arg != 0)plugins[i].in_opts[plugins[i].in_opts_len].flag = (int*)optarg;
                             plugins[i].in_opts_len++;
                             got_opts++;
-                            //сохраняем опцию в plugins[i].in_opts
-                            //как (int*) потому что такой тип в struct option
                         }
                     }
             }
             break;
-        case 'h': /if choice h - print help
+        case 'h':
             printf("Usage: %s <options> <dir>\n", argv[0]);
             printf("<dir> - directory to search\n");
             printf("available options:\n-h for help\n-P <dir> to change plugin dir\n-O for 'or'\n-A for 'and'\n-N for 'not'\n");
@@ -156,7 +154,6 @@ void optparse(int argc, char *argv[]){
                 for(size_t j = 0; j < plugins[i].pi.sup_opts_len; j++) printf("%s -- %s\n", plugins[i].pi.sup_opts[j].opt.name, plugins[i].pi.sup_opts[j].opt_descr);
                 printf("\n");
             }
-            //выводим всю информацию о доступных опциях у плагинов ^
             if(plugins){
                 for(int i = 0; i < plug_cnt; i++) {
                     if(plugins[i].in_opts) free(plugins[i].in_opts);
@@ -166,8 +163,8 @@ void optparse(int argc, char *argv[]){
             }   
             free(long_options);
             exit(EXIT_SUCCESS);
-        case 'v'://if choice v - print version
-            printf("Blagorodnaia Liudmila\nN33501\nVersion 0.1\n");
+        case 'v':
+            printf("Shurygin Danil N3245 Version 1.0\n");
             if(plugins){
                 for(int i = 0; i < plug_cnt; i++) {
                     if(plugins[i].in_opts) free(plugins[i].in_opts);
@@ -221,10 +218,6 @@ void optparse(int argc, char *argv[]){
 }
 
 void print_entry(int level, int type, const char *path) {
-    /*if (getenv("LAB11DEBUG") != NULL) {
-        fprintf(stderr, "Debug mode is enabled.\n");
-    }*/
-
     if (!strcmp(path, ".") || !strcmp(path, "..") || type!=FTW_F)
         return; //открываем только обычные файлы
 
@@ -262,9 +255,6 @@ int walk_func(const char *fpath,const struct stat *sb,
 }
 
 void walk_dir(const char *dir) {
-    if (getenv("LAB1DEBUG") != NULL) {
-    	fprintf(stderr, "Debug mode is enabled.\n");
-    }
     int res = nftw(dir, walk_func, 10, FTW_PHYS);   
     if (res < 0) {
         fprintf(stderr, "ntfw() failed: %s\n", strerror(errno));
